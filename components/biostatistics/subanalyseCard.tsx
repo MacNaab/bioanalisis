@@ -3,15 +3,33 @@
 import { v4 as uuidv4 } from "uuid";
 import Plot from "react-plotly.js";
 import { AnalysisSubType, AnalysisType } from "@/types/analysis";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChart3, TableIcon, Code, TrendingUp } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { BarChart3, TableIcon, Code, TrendingUp, Database } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { StatisticalResult } from "./statisticalResult";
 
 const labelText = (label: string, mainCaracteristicName: string) => {
   return typeof label === "string"
@@ -25,14 +43,29 @@ function Qualitative({
   contingencyTable,
   result,
   labels,
+  sheetsNames,
+  isGlobal = false,
 }: {
   caracteristicName: string;
   mainCaracteristicName: string;
   contingencyTable: number[][];
   result: any;
   labels: AnalysisSubType["labels"];
+  sheetsNames?: string[];
+  isGlobal?: boolean;
 }) {
   const [isResultsOpen, setIsResultsOpen] = useState(false);
+  const [screenSize, setScreenSize] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setScreenSize(window.innerWidth);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
 
   const data: {
     x: string[];
@@ -43,11 +76,20 @@ function Qualitative({
     marker: { color: string };
   }[] = [];
 
-  const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+  const colors = [
+    "#3b82f6",
+    "#ef4444",
+    "#10b981",
+    "#f59e0b",
+    "#8b5cf6",
+    "#ec4899",
+  ];
 
   contingencyTable.forEach((row, index) => {
+    const x =
+      labels?.x.map((label) => labelText(label, caracteristicName)) ?? [];
     const d = {
-      x: labels?.x ?? [],
+      x,
       y: row,
       text: row.map((value) => value.toString()),
       type: "bar" as const,
@@ -57,105 +99,170 @@ function Qualitative({
     data.push(d);
   });
 
+  const Charts = () => {
+    return (
+      <div className="rounded-lg border bg-card p-4">
+        <Plot
+          data={data}
+          layout={{
+            title: {
+              text: `Distribution de ${caracteristicName} en fonction ${
+                isGlobal ? sheetsNames : mainCaracteristicName
+              }`,
+              font: { size: 16 },
+            },
+            plot_bgcolor: "rgba(0,0,0,0)",
+            paper_bgcolor: "rgba(0,0,0,0)",
+            font: { family: "Inter, system-ui, sans-serif" },
+            margin: { l: 50, r: 50, t: 60, b: 50 },
+          }}
+          style={{ width: "100%", height: "500px" }}
+          config={{
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ["pan2d", "lasso2d"],
+          }}
+        />
+      </div>
+    );
+  };
+
+  const TableData = () => {
+    return (
+      <div className="rounded-lg border p-2 flex flex-col gap-2">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead className="font-semibold">
+                {isGlobal ? "" : mainCaracteristicName} | {caracteristicName}
+              </TableHead>
+              {labels?.x.map((label) => (
+                <TableHead key={uuidv4()} className="text-center font-semibold">
+                  {labelText(label, caracteristicName)}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {contingencyTable.map((row, rowIndex) => (
+              <TableRow key={uuidv4()} className="hover:bg-muted/30">
+                <TableCell className="font-medium bg-muted/20">
+                  {labelText(labels?.y[rowIndex] ?? "", mainCaracteristicName)}
+                </TableCell>
+                {row.map((cell) => (
+                  <TableCell key={uuidv4()} className="text-center">
+                    <Badge variant="secondary">{cell}</Badge>
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <div>
+          <StatisticalResult
+            result={result}
+            variableName={caracteristicName}
+            mainName={isGlobal ? "" : mainCaracteristicName}
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Card className="shadow-sm">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 cursor-pointer">
               <BarChart3 className="h-5 w-5 text-primary" />
               {caracteristicName}
             </CardTitle>
             <CardDescription>
-              Analyse qualitative par rapport à {mainCaracteristicName}
+              Analyse qualitative par rapport à{" "}
+              {isGlobal ? sheetsNames?.join(", ") : mainCaracteristicName}
             </CardDescription>
           </div>
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+          <Badge
+            variant="outline"
+            className="bg-blue-50 text-blue-700 border-blue-200"
+          >
             Qualitatif
           </Badge>
         </div>
       </CardHeader>
-      
+
       <CardContent>
-        <Tabs defaultValue="chart" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="chart" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Graphique
-            </TabsTrigger>
-            <TabsTrigger value="table" className="flex items-center gap-2">
-              <TableIcon className="h-4 w-4" />
-              Tableau
-            </TabsTrigger>
-            <TabsTrigger value="stats" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Statistiques
-            </TabsTrigger>
-          </TabsList>
+        <Tabs
+          defaultValue={screenSize > 1024 ? "data" : "chart"}
+          className="space-y-6"
+        >
+          {screenSize > 1024 ? (
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger
+                value="data"
+                className="flex items-center gap-2 cursor-pointer "
+              >
+                <Database className="h-4 w-4" />
+                Données
+              </TabsTrigger>
+              <TabsTrigger
+                value="stats"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <TrendingUp className="h-4 w-4" />
+                Statistiques
+              </TabsTrigger>
+            </TabsList>
+          ) : (
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger
+                value="chart"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Graphique
+              </TabsTrigger>
+              <TabsTrigger
+                value="table"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <TableIcon className="h-4 w-4" />
+                Tableau
+              </TabsTrigger>
+              <TabsTrigger
+                value="stats"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <TrendingUp className="h-4 w-4" />
+                Statistiques
+              </TabsTrigger>
+            </TabsList>
+          )}
+
+          <TabsContent
+            value="data"
+            className="w-full overflow-x-auto flex gap-4 space-y-4"
+          >
+            <Charts />
+            <TableData />
+          </TabsContent>
 
           <TabsContent value="chart" className="space-y-4">
-            <div className="rounded-lg border bg-card p-4">
-              <Plot
-                data={data}
-                layout={{
-                  title: {
-                    text: `Distribution de ${caracteristicName} par ${mainCaracteristicName}`,
-                    font: { size: 16 }
-                  },
-                  // xaxis: { title: caracteristicName },
-                  // yaxis: { title: 'Fréquence' },
-                  plot_bgcolor: 'rgba(0,0,0,0)',
-                  paper_bgcolor: 'rgba(0,0,0,0)',
-                  font: { family: 'Inter, system-ui, sans-serif' },
-                  margin: { l: 50, r: 50, t: 60, b: 50 },
-                }}
-                style={{ width: '100%', height: '500px' }}
-                config={{ 
-                  responsive: true,
-                  displayModeBar: true,
-                  modeBarButtonsToRemove: ['pan2d', 'lasso2d']
-                }}
-              />
-            </div>
+            <Charts />
           </TabsContent>
 
           <TabsContent value="table" className="space-y-4">
-            <div className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="font-semibold">
-                      {mainCaracteristicName} / {caracteristicName}
-                    </TableHead>
-                    {labels?.x.map((label) => (
-                      <TableHead key={uuidv4()} className="text-center font-semibold">
-                        {labelText(label, caracteristicName)}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {contingencyTable.map((row, rowIndex) => (
-                    <TableRow key={uuidv4()} className="hover:bg-muted/30">
-                      <TableCell className="font-medium bg-muted/20">
-                        {labelText(labels?.y[rowIndex] ?? "", mainCaracteristicName)}
-                      </TableCell>
-                      {row.map((cell) => (
-                        <TableCell key={uuidv4()} className="text-center">
-                          <Badge variant="secondary">{cell}</Badge>
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <TableData />
           </TabsContent>
 
           <TabsContent value="stats" className="space-y-4">
             <Collapsible open={isResultsOpen} onOpenChange={setIsResultsOpen}>
               <CollapsibleTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2 w-full justify-start">
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 cursor-pointer w-full justify-start"
+                >
                   {isResultsOpen ? (
                     <ChevronDown className="h-4 w-4" />
                   ) : (
@@ -187,6 +294,8 @@ function Quantitative({
   data,
   labels,
   IQR,
+  sheetsNames,
+  isGlobal = false,
 }: {
   caracteristicName: string;
   mainCaracteristicName: string;
@@ -194,10 +303,30 @@ function Quantitative({
   data: any[];
   labels: AnalysisSubType["labels"];
   IQR: AnalysisSubType["IQR"];
+  sheetsNames?: string[];
+  isGlobal?: boolean;
 }) {
   const [isResultsOpen, setIsResultsOpen] = useState(false);
+  const [screenSize, setScreenSize] = useState(window.innerWidth);
 
-  const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+  useEffect(() => {
+    const handleResize = () => {
+      setScreenSize(window.innerWidth);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  const colors = [
+    "#3b82f6",
+    "#ef4444",
+    "#10b981",
+    "#f59e0b",
+    "#8b5cf6",
+    "#ec4899",
+  ];
 
   const plotData = data.map((d, i) => ({
     y: d,
@@ -208,125 +337,188 @@ function Quantitative({
     jitter: 0.3,
   }));
 
+  const Charts = () => {
+    return (
+      <div className="rounded-lg border bg-card p-4">
+        <Plot
+          data={plotData}
+          layout={{
+            title: {
+              text: `Distribution de ${caracteristicName} en fonction ${
+                isGlobal ? sheetsNames : mainCaracteristicName
+              }`,
+              font: { size: 16 },
+            },
+            // xaxis: { title: mainCaracteristicName },
+            // yaxis: { title: caracteristicName },
+            plot_bgcolor: "rgba(0,0,0,0)",
+            paper_bgcolor: "rgba(0,0,0,0)",
+            font: { family: "Inter, system-ui, sans-serif" },
+            margin: { l: 50, r: 50, t: 60, b: 50 },
+          }}
+          style={{ width: "100%", height: "500px" }}
+          config={{
+            responsive: true,
+            displayModeBar: true,
+            modeBarButtonsToRemove: ["pan2d", "lasso2d"],
+          }}
+        />
+      </div>
+    );
+  };
+
+  const TableData = () => {
+    return (
+      <div className="rounded-lg border p-2 flex flex-col gap-2">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead className="font-semibold">Statistique</TableHead>
+              {labels?.y.map((label) => (
+                <TableHead key={uuidv4()} className="text-center font-semibold">
+                  {labelText(label, mainCaracteristicName)}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow className="hover:bg-muted/30">
+              <TableCell className="font-medium bg-muted/20">
+                Moyenne (Écart-type)
+              </TableCell>
+              {IQR?.map((stats, index) => (
+                <TableCell key={index} className="text-center">
+                  <div className="space-y-1">
+                    <div className="font-semibold">{stats.mean.toFixed(2)}</div>
+                    <div className="text-sm text-muted-foreground">
+                      (±{stats.std.toFixed(2)})
+                    </div>
+                  </div>
+                </TableCell>
+              ))}
+            </TableRow>
+            <TableRow className="hover:bg-muted/30">
+              <TableCell className="font-medium bg-muted/20">
+                Médiane [Q1 ; Q3]
+              </TableCell>
+              {IQR?.map((stats, index) => (
+                <TableCell key={index} className="text-center">
+                  <div className="space-y-1">
+                    <div className="font-semibold">{stats.median}</div>
+                    <div className="text-sm text-muted-foreground">
+                      [{stats.q1} ; {stats.q3}]
+                    </div>
+                  </div>
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableBody>
+        </Table>
+        <div>
+          <StatisticalResult
+            result={result}
+            variableName={caracteristicName}
+            mainName={isGlobal ? "" : mainCaracteristicName}
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Card className="shadow-sm">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 cursor-pointer">
               <BarChart3 className="h-5 w-5 text-primary" />
               {caracteristicName}
             </CardTitle>
             <CardDescription>
-              Analyse quantitative par rapport à {mainCaracteristicName}
+              Analyse quantitative par rapport à{" "}
+              {isGlobal ? sheetsNames?.join(", ") : mainCaracteristicName}
             </CardDescription>
           </div>
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+          <Badge
+            variant="outline"
+            className="bg-green-50 text-green-700 border-green-200"
+          >
             Quantitatif
           </Badge>
         </div>
       </CardHeader>
 
       <CardContent>
-        <Tabs defaultValue="chart" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="chart" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Box Plot
-            </TabsTrigger>
-            <TabsTrigger value="table" className="flex items-center gap-2">
-              <TableIcon className="h-4 w-4" />
-              Statistiques
-            </TabsTrigger>
-            <TabsTrigger value="stats" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Tests
-            </TabsTrigger>
-          </TabsList>
+        <Tabs
+          defaultValue={screenSize > 1024 ? "data" : "chart"}
+          className="space-y-6"
+        >
+          {screenSize > 1024 ? (
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger
+                value="data"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Données
+              </TabsTrigger>
+              <TabsTrigger
+                value="stats"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <TrendingUp className="h-4 w-4" />
+                Tests
+              </TabsTrigger>
+            </TabsList>
+          ) : (
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger
+                value="chart"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Box Plot
+              </TabsTrigger>
+              <TabsTrigger
+                value="table"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <TableIcon className="h-4 w-4" />
+                Statistiques
+              </TabsTrigger>
+              <TabsTrigger
+                value="stats"
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <TrendingUp className="h-4 w-4" />
+                Tests
+              </TabsTrigger>
+            </TabsList>
+          )}
+
+          <TabsContent
+            value="data"
+            className="w-full overflow-x-auto flex gap-4 space-y-4"
+          >
+            <Charts />
+            <TableData />
+          </TabsContent>
 
           <TabsContent value="chart" className="space-y-4">
-            <div className="rounded-lg border bg-card p-4">
-              <Plot
-                data={plotData}
-                layout={{
-                  title: {
-                    text: `Distribution de ${caracteristicName} par ${mainCaracteristicName}`,
-                    font: { size: 16 }
-                  },
-                  // xaxis: { title: mainCaracteristicName },
-                  // yaxis: { title: caracteristicName },
-                  plot_bgcolor: 'rgba(0,0,0,0)',
-                  paper_bgcolor: 'rgba(0,0,0,0)',
-                  font: { family: 'Inter, system-ui, sans-serif' },
-                  margin: { l: 50, r: 50, t: 60, b: 50 },
-                }}
-                style={{ width: '100%', height: '500px' }}
-                config={{ 
-                  responsive: true,
-                  displayModeBar: true,
-                  modeBarButtonsToRemove: ['pan2d', 'lasso2d']
-                }}
-              />
-            </div>
+            <Charts />
           </TabsContent>
 
           <TabsContent value="table" className="space-y-4">
-            <div className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="font-semibold">Statistique</TableHead>
-                    {labels?.y.map((label) => (
-                      <TableHead key={uuidv4()} className="text-center font-semibold">
-                        {labelText(label, mainCaracteristicName)}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow className="hover:bg-muted/30">
-                    <TableCell className="font-medium bg-muted/20">
-                      Moyenne (Écart-type)
-                    </TableCell>
-                    {IQR?.map((stats, index) => (
-                      <TableCell key={index} className="text-center">
-                        <div className="space-y-1">
-                          <div className="font-semibold">
-                            {stats.mean.toFixed(2)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            (±{stats.std.toFixed(2)})
-                          </div>
-                        </div>
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                  <TableRow className="hover:bg-muted/30">
-                    <TableCell className="font-medium bg-muted/20">
-                      Médiane [Q1 ; Q3]
-                    </TableCell>
-                    {IQR?.map((stats, index) => (
-                      <TableCell key={index} className="text-center">
-                        <div className="space-y-1">
-                          <div className="font-semibold">
-                            {stats.median}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            [{stats.q1} ; {stats.q3}]
-                          </div>
-                        </div>
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
+            <TableData />
           </TabsContent>
 
           <TabsContent value="stats" className="space-y-4">
             <Collapsible open={isResultsOpen} onOpenChange={setIsResultsOpen}>
               <CollapsibleTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2 w-full justify-start">
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-2 cursor-pointer w-full justify-start"
+                >
                   {isResultsOpen ? (
                     <ChevronDown className="h-4 w-4" />
                   ) : (
@@ -353,23 +545,28 @@ function Quantitative({
 
 export default function SubCard({
   analysisResults,
+  sheetsNames,
 }: {
   analysisResults: AnalysisType;
+  sheetsNames?: string[];
 }) {
   const subanalyses = analysisResults.subanalyses;
-
-  console.log("analysisResults : ", analysisResults);
-  console.log("subanalyses : ", subanalyses);
 
   return (
     <div className="space-y-8">
       {/* En-tête de l'analyse */}
       <div className="space-y-2">
         <h2 className="text-2xl font-bold tracking-tight">
-          Analyse de : {analysisResults.main}
+          Analyse de{" "}
+          <strong>
+            {analysisResults.name === "Global"
+              ? sheetsNames?.join(", ")
+              : analysisResults.main}
+          </strong>
         </h2>
         <p className="text-muted-foreground">
-          {subanalyses.length} analyse(s) effectuée(s)
+          {subanalyses.length} analyse{subanalyses.length > 1 ? "s" : ""}{" "}
+          effectuée{subanalyses.length > 1 ? "s" : ""}
         </p>
       </div>
 
@@ -377,7 +574,7 @@ export default function SubCard({
       <div className="space-y-6">
         {subanalyses.map((sub: AnalysisSubType) => {
           if (sub.caracteristic.type === "qualitative") {
-            if (sub.caracteristic.options && sub.contingencyTable) {
+            if (sub.contingencyTable) {
               return (
                 <Qualitative
                   key={uuidv4()}
@@ -386,6 +583,8 @@ export default function SubCard({
                   result={sub.result}
                   contingencyTable={sub.contingencyTable}
                   labels={sub.labels}
+                  sheetsNames={sheetsNames}
+                  isGlobal={analysisResults.name === "Global"}
                 />
               );
             }
@@ -401,6 +600,8 @@ export default function SubCard({
                 data={sub.data}
                 IQR={sub.IQR}
                 labels={sub.labels}
+                sheetsNames={sheetsNames}
+                isGlobal={analysisResults.name === "Global"}
               />
             );
           }

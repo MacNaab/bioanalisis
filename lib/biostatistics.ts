@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   AnalysisSubType,
   AnalysisType,
@@ -5,9 +6,9 @@ import {
 } from "@/types/analysis";
 import chi2test from "@stdlib/stats/chi2test";
 import ttest2 from "@stdlib/stats/ttest2";
+import anova1 from "@stdlib/stats/anova1";
 import * as ss from "simple-statistics";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export const baseCaracteristics = [
   { name: "Date", type: "date" },
   { name: "Age", type: "quantitative" },
@@ -118,6 +119,17 @@ export function analysis(
           x: x.reverse(),
           y: y.reverse(),
         };
+      } else {
+        // x représente la liste des valeurs possibles de secondaryCharacteristic
+        const x = getUniqueValuesByKey(
+          sheetData,
+          secondaryCharacteristic?.name
+        );
+        const y = [...(selectedPrimaryCharacteristic?.options as string[])];
+        subanalyse.labels = {
+          x: x,
+          y: y.reverse(),
+        };
       }
     } else {
       // date
@@ -176,8 +188,6 @@ export function createContingencyTable(
   return contingencyTable;
 }
 
-// calculateNumericStats
-
 /**
  * Calculate the median, quartiles, mean, and standard deviation of a numeric array.
  * @param {Array<number>} data - The input data.
@@ -190,16 +200,6 @@ export function calculateNumericStats(data: number[]): {
   mean: number;
   std: number;
 } {
-  /*
-  const sortedData = [...data].sort((a, b) => a - b);
-  const medianIndex = Math.floor(sortedData.length / 2);
-  const median = sortedData.length % 2 === 0 ? (sortedData[medianIndex - 1] + sortedData[medianIndex]) / 2 : sortedData[medianIndex];
-  const q1Index = Math.floor(sortedData.length / 4);
-  const q1 = sortedData[q1Index];
-  const q3Index = Math.floor((sortedData.length * 3) / 4);
-  const q3 = sortedData[q3Index];
-  */
-
   const median = ss.median(data);
   const q1 = ss.quantile(data, 0.25);
   const q3 = ss.quantile(data, 0.75);
@@ -207,4 +207,165 @@ export function calculateNumericStats(data: number[]): {
   const std = data.length > 1 ? ss.standardDeviation(data) : 0;
 
   return { median, q1, q3, mean, std };
+}
+
+/**
+ * Get the unique values of a specific key from an array of objects.
+ * @param {Array<Object>} arr - The input array of objects.
+ * @param {string} keyName - The name of the key to get the unique values from.
+ * @returns {Array} - An array of unique values.
+ */
+export function getUniqueValuesByKey(arr: any[], keyName: string): any[] {
+  const uniqueValues: any[] = [];
+  arr.forEach((obj) => {
+    if (!uniqueValues.includes(obj[keyName])) {
+      uniqueValues.push(obj[keyName]);
+    }
+  });
+  return uniqueValues;
+}
+
+export function globalAnalysis(
+  sheetsNames: string[],
+  sheetsData: any,
+  primaryCharacteristic: string,
+  secondaryCharacteristics: string[]
+): AnalysisType {
+  const groupsData: any[] = [];
+  const subanalyses: AnalysisSubType[] = [];
+
+  // liste des caracteristiques selectionnées
+  const selectedCharacteristics: CaracteristicType[] = [];
+  selectedCharacteristics.push(
+    getCaracteristicsByName(primaryCharacteristic) as CaracteristicType
+  );
+  secondaryCharacteristics.forEach((characteristic) => {
+    selectedCharacteristics.push(
+      getCaracteristicsByName(characteristic) as CaracteristicType
+    );
+  });
+
+  // Data par feuille
+  const sheetData: any[] = [];
+  sheetsNames.forEach((sheetName) => {
+    sheetData.push(sheetsData[sheetName]);
+  });
+
+  selectedCharacteristics.forEach((characteristic: CaracteristicType) => {
+    // sous-analyse par caracteristique
+    const subanalyse: AnalysisSubType = {
+      caracteristic: characteristic,
+      data: [],
+      result: null,
+    };
+    if (characteristic.type === "quantitative") {
+      // analyse quantitative
+      const x = sheetData.map((groupData) => {
+        return groupData.map((row: any) => Number(row[characteristic.name]));
+      });
+      subanalyse.data = x;
+      subanalyse.IQR = x.map((group) => calculateNumericStats(group));
+      subanalyse.labels = {
+        x: [characteristic?.name],
+        y: [...sheetsNames],
+      };
+      if (sheetData.length === 2) {
+        // Ttest
+        subanalyse.result = ttest2(x[0], x[1]);
+      } else if (sheetData.length > 2) {
+        // Anova
+        // Séparation en 2 tableaux comme requis par anova1
+        const table1: number[] = [];
+        const table2: string[] = [];
+
+        sheetData.forEach((data, index) => {
+          data.forEach((row: any) => {
+            table1.push(Number(row[characteristic.name]));
+            table2.push(sheetsNames[index]);
+          });
+        });
+        subanalyse.result = anova1(table1, table2);
+      }
+    } else if (characteristic.type === "qualitative") {
+      // analyse qualitative
+      // créer une table de contingence en ce basant sur la nom de characteristic et à partir des différents Array de sheetData
+      const contingencyTable = createGlobalContingencyTable(
+        sheetData,
+        sheetsNames,
+        characteristic.name
+      );
+      subanalyse.result = chi2test(contingencyTable);
+      subanalyse.contingencyTable = contingencyTable;
+
+      if (characteristic?.options) {
+        const x = [...characteristic?.options].map((option) =>
+          option.toString()
+        );
+        const y = [...sheetsNames];
+        subanalyse.labels = {
+          x: x.reverse(),
+          y,
+        };
+      } else {
+        // x représente la liste des valeurs possibles de secondaryCharacteristic
+        const x = getUniqueValuesByKey(Object.values(sheetData).flat(), characteristic?.name);
+        const y = [...sheetsNames];
+        subanalyse.labels = {
+          x,
+          y,
+        };
+      }
+    } else {
+      // date
+    }
+    subanalyses.push(subanalyse);
+  });
+
+  return {
+    name: "Global",
+    main: primaryCharacteristic,
+    groupsData,
+    subanalyses,
+  };
+}
+
+/**
+ * Génère une matrice de contingence pour le test du Chi²
+ * @param data Tableau de feuilles Excel (3D array)
+ * @param sheetNames Noms des feuilles
+ * @param variable Variable qualitative à analyser
+ * @returns Matrice 2D prête pour le test du Chi²
+ */
+function createGlobalContingencyTable(
+  data: any[][],
+  sheetNames: string[],
+  variable: string
+): number[][] {
+  // 1. Collecter toutes les catégories uniques
+  const allCategories = new Set<string>();
+  data.forEach((sheet) => {
+    sheet.forEach((row) => {
+      allCategories.add(String(row[variable] ?? "Non renseigné"));
+    });
+  });
+
+  // 2. Initialiser la matrice [feuilles × catégories]
+  const matrix: number[][] = Array(sheetNames.length)
+    .fill(0)
+    .map(() => Array(allCategories.size).fill(0));
+
+  // 3. Remplir la matrice
+  const categoryIndex = Array.from(allCategories).reduce((acc, cat, idx) => {
+    acc[cat] = idx;
+    return acc;
+  }, {} as Record<string, number>);
+
+  data.forEach((sheet, sheetIdx) => {
+    sheet.forEach((row) => {
+      const cat = String(row[variable] ?? "Non renseigné");
+      matrix[sheetIdx][categoryIndex[cat]]++;
+    });
+  });
+
+  return matrix;
 }

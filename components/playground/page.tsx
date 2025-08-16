@@ -70,8 +70,16 @@ export default function ListeAnalyses() {
                   <h2 className="font-semibold">{analysis.name}</h2>
                   <p className="text-sm text-gray-500">
                     {analysis.fileName} • {analysis.sheets.length} feuille
-                    {analysis.sheets.length > 1 ? "s" : ""} •&nbsp;
-                    {new Date(analysis.createdAt).toLocaleDateString()}
+                    {analysis.sheets.length > 1 ? "s" : ""} •&nbsp;Créé le&nbsp;
+                    {new Date(analysis.createdAt).toLocaleDateString(
+                      undefined,
+                      {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      }
+                    )}
                   </p>
                 </div>
               </AccordionTrigger>

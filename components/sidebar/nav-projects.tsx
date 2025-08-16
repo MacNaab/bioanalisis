@@ -7,7 +7,6 @@ import {
   MoreHorizontal,
   Trash2,
 } from "lucide-react";
-import { del } from "idb-keyval";
 
 import {
   DropdownMenu,
@@ -25,28 +24,19 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Analysis } from "@/types/analysis"; // Votre type Analysis existant
-import { useEffect, useState } from "react";
-import { loadAnalyses } from "@/lib/idb";
 import Link from "next/link";
+import { useLiveAnalyses } from "@/hooks/useLiveAnalyses";
+import { deleteAnalysis as deleteAnalysisIDB } from "@/lib/idb";
 
 export function NavAnalyses() {
   const { isMobile } = useSidebar();
-  const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  // const [analyses, setAnalyses] = useState<Analysis[]>([]);
 
-  useEffect(() => {
-    // Charger les analyses au chargement du composant
-    loadAnalyses().then(setAnalyses);
-  }, []);
-
-  const onDelete = (deletedId: string) => {
-    setAnalyses((prev) => prev.filter((a) => a.id !== deletedId));
-  };
+  const analyses = useLiveAnalyses();
 
   const handleDeleteAnalysis = async (analysisId: string) => {
     try {
-      await del(`analysis_${analysisId}`);
-      onDelete?.(analysisId);
+      await deleteAnalysisIDB(analysisId);
     } catch (error) {
       console.error("Erreur lors de la suppression", error);
     }

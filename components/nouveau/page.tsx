@@ -5,8 +5,8 @@
 
 import { useState } from "react";
 import * as XLSX from "xlsx";
-import { set, keys } from "idb-keyval";
 import { toast } from "sonner";
+import { CheckCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,15 +18,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { saveAnalysis as saveAnalysisIDB, getKeys as getKeysIDB } from "@/lib/idb";
 
 export default function NouvelleAnalyse() {
   const [file, setFile] = useState<File | null>(null);
   const [analysisName, setAnalysisName] = useState("");
   const [parsedData, setParsedData] = useState<Record<string, any[]>>({});
   const [currentSheet, setCurrentSheet] = useState<string | null>(null);
-
-  const router = useRouter();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -61,7 +60,7 @@ export default function NouvelleAnalyse() {
     }
 
     const fileData = await file.arrayBuffer();
-    
+
     return {
       id: crypto.randomUUID(),
       name: analysisName,
@@ -101,7 +100,7 @@ export default function NouvelleAnalyse() {
       const analysis = await createAnalysis();
 
       // Vérification des doublons
-      const existingKeys = await keys();
+      const existingKeys = await getKeysIDB();
       const duplicate = existingKeys.some(
         (key) =>
           typeof key === "string" &&
@@ -115,9 +114,10 @@ export default function NouvelleAnalyse() {
       }
 
       // Sauvegarde dans IndexedDB
-      await set(`analysis_${analysis.id}`, analysis);
+      await saveAnalysisIDB(analysis);
 
       // Feedback utilisateur
+      /*
       toast.success("Analyse créée avec succès", {
         description: `${analysis.sheets.length} feuille(s) importée(s)`,
         action: {
@@ -125,6 +125,33 @@ export default function NouvelleAnalyse() {
           onClick: () => router.push(`/biostatistics/${analysis.id}`),
         },
       });
+      */
+      toast(
+        <div className="flex items-center justify-between gap-3 min-w-[300px] w-full">
+          <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <div className="font-medium flex items-center justify-between">
+              <span>Analyse prête</span>
+            </div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {`Ajout de ${analysis.name}`}
+            </div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {`${analysis.sheets.length} feuille${
+                analysis.sheets.length > 1 ? "s" : ""
+              } traitée${analysis.sheets.length > 1 ? "s" : ""}`}
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <Link
+              href={`/biostatistics/${analysis.id}`}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2"
+            >
+              Voir
+            </Link>
+          </div>
+        </div>
+      );
     } catch (error) {
       console.error("Erreur lors de la sauvegarde", error);
       toast.error("Échec de la création", {

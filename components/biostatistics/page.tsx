@@ -4,6 +4,14 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import {
+  AlertCircle,
+  BarChart3,
+  FileSpreadsheet,
+  Play,
+  Settings,
+} from "lucide-react";
+
 import { Analysis } from "@/types/analysis";
 import { parseExcelData, getAnalysis } from "@/lib/idb";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,16 +34,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import {
-  AlertCircle,
-  BarChart3,
-  FileSpreadsheet,
-  Play,
-  Settings,
-} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { analysis, baseCaracteristics } from "@/lib/biostatistics";
+import {
+  analysis,
+  baseCaracteristics,
+  globalAnalysis,
+} from "@/lib/biostatistics";
 import SubAnalyseCard from "@/components/biostatistics/subanalyseCard";
+import { ScrollToTopButton } from "../ScrollToTopButton";
 
 export default function BiostatisticsPage({
   params,
@@ -46,7 +52,6 @@ export default function BiostatisticsPage({
 
   // États principaux renommés pour plus de clarté
   const [analysisConfig, setAnalysisConfig] = useState<Analysis | null>(null);
-  // const [activeSheetName, setActiveSheetName] = useState<string | null>(null);
   const [sheetDataCollection, setSheetDataCollection] = useState<
     Record<string, any[]>
   >({});
@@ -65,7 +70,6 @@ export default function BiostatisticsPage({
       const data = await getAnalysis(id);
       if (data) {
         setAnalysisConfig(data);
-        // setActiveSheetName(data.sheets[0]);
         const parsedData = parseExcelData(data);
         setSheetDataCollection(parsedData);
       }
@@ -88,6 +92,13 @@ export default function BiostatisticsPage({
           secondaryCharacteristics
         );
       });
+      results["Global"] = globalAnalysis(
+        analysisConfig?.sheets ?? [],
+        // Object.values(sheetDataCollection).flat(),
+        sheetDataCollection,
+        primaryCharacteristic,
+        secondaryCharacteristics
+      );
       setAnalysisResults(results);
       setIsAnalyzing(false);
     }, 1000);
@@ -164,7 +175,7 @@ export default function BiostatisticsPage({
       </div>
 
       {/* Configuration de l'analyse */}
-      <Card>
+      <Card id="data-info">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
@@ -183,7 +194,16 @@ export default function BiostatisticsPage({
             </Label>
             <Select
               value={primaryCharacteristic}
-              onValueChange={setPrimaryCharacteristic}
+              onValueChange={(value) => {
+                setPrimaryCharacteristic(value);
+                // vérifier que la valeur ne fait pas partie des secondaryCharacteristics,
+                // sinon la supprimer de secondaryCharacteristics
+                if (secondaryCharacteristics.includes(value)) {
+                  setSecondaryCharacteristics(
+                    secondaryCharacteristics.filter((name) => name !== value)
+                  );
+                }
+              }}
             >
               <SelectTrigger className="w-full cursor-pointer">
                 <SelectValue placeholder="Sélectionnez la caractéristique principale" />
@@ -232,6 +252,7 @@ export default function BiostatisticsPage({
                         checked as boolean
                       )
                     }
+                    disabled={caracteristic.name === primaryCharacteristic}
                   />
                   <Label
                     htmlFor={caracteristic.name}
@@ -247,8 +268,9 @@ export default function BiostatisticsPage({
             {secondaryCharacteristics.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  {secondaryCharacteristics.length} caractéristique(s)
-                  sélectionnée(s) :
+                  {secondaryCharacteristics.length} caractéristique
+                  {secondaryCharacteristics.length > 1 ? "s " : " "}
+                  sélectionnée{secondaryCharacteristics.length > 1 ? "s" : ""} :
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {secondaryCharacteristics.map((char) => (
@@ -312,7 +334,7 @@ export default function BiostatisticsPage({
           </CardHeader>
           <CardContent>
             <Tabs defaultValue={analysisConfig.sheets[0]} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-3">
+              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
                 {analysisConfig.sheets.map((sheetName) => (
                   <TabsTrigger
                     key={sheetName}
@@ -323,8 +345,14 @@ export default function BiostatisticsPage({
                     {sheetName}
                   </TabsTrigger>
                 ))}
+                <TabsTrigger
+                  value="Global"
+                  // onClick={() => setActiveSheetName(sheetName)}
+                  className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground cursor-pointer"
+                >
+                  Global
+                </TabsTrigger>
               </TabsList>
-
               {analysisConfig.sheets.map((sheetName) => (
                 <TabsContent
                   key={sheetName}
@@ -336,10 +364,18 @@ export default function BiostatisticsPage({
                   />
                 </TabsContent>
               ))}
+              <TabsContent value="Global" className="space-y-6">
+                <SubAnalyseCard
+                  analysisResults={analysisResults["Global"]}
+                  sheetsNames={analysisConfig.sheets}
+                />
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
       )}
+
+      <ScrollToTopButton targetId="data-info" />
     </div>
   );
 }
