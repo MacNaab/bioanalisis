@@ -42,6 +42,7 @@ import {
 } from "@/lib/biostatistics";
 import SubAnalyseCard from "@/components/biostatistics/subanalyseCard";
 import { ScrollToTopButton } from "../ScrollToTopButton";
+import { toast } from "sonner";
 
 export default function BiostatisticsPage({
   params,
@@ -79,28 +80,34 @@ export default function BiostatisticsPage({
 
   const startAnalysis = () => {
     setIsAnalyzing(true);
-
     // Simulation d'un délai d'analyse
     setTimeout(() => {
-      const results: any = {};
-      analysisConfig?.sheets.forEach((sheetName) => {
-        const sheetData = sheetDataCollection[sheetName];
-        results[sheetName as string] = analysis(
-          sheetName,
-          sheetData,
+      try {
+        const results: any = {};
+        analysisConfig?.sheets.forEach((sheetName) => {
+          const sheetData = sheetDataCollection[sheetName];
+          results[sheetName as string] = analysis(
+            sheetName,
+            sheetData,
+            primaryCharacteristic,
+            secondaryCharacteristics
+          );
+        });
+        results["Global"] = globalAnalysis(
+          analysisConfig?.sheets ?? [],
+          // Object.values(sheetDataCollection).flat(),
+          sheetDataCollection,
           primaryCharacteristic,
           secondaryCharacteristics
         );
-      });
-      results["Global"] = globalAnalysis(
-        analysisConfig?.sheets ?? [],
-        // Object.values(sheetDataCollection).flat(),
-        sheetDataCollection,
-        primaryCharacteristic,
-        secondaryCharacteristics
-      );
-      setAnalysisResults(results);
-      setIsAnalyzing(false);
+        setAnalysisResults(results);
+        setIsAnalyzing(false);
+        toast.success("Analyse terminée.");
+      } catch (error) {
+        toast.error(`Une erreur s'est produite lors de l'analyse :\n${error}`);
+        console.error("Error parsing Excel data:", error);
+        setIsAnalyzing(false);
+      }
     }, 1000);
   };
 
@@ -219,6 +226,7 @@ export default function BiostatisticsPage({
                       {caracteristic.name}
                     </SelectItem>
                   ))}
+                <SelectItem value="Catégories d'âge">Catégories d'âge</SelectItem>
               </SelectContent>
             </Select>
             {primaryCharacteristic && (

@@ -5,6 +5,7 @@ import {
   CaracteristicType,
 } from "@/types/analysis";
 import chi2test from "@stdlib/stats/chi2test";
+import ttest from "@stdlib/stats/ttest";
 import ttest2 from "@stdlib/stats/ttest2";
 import anova1 from "@stdlib/stats/anova1";
 import * as ss from "simple-statistics";
@@ -30,6 +31,22 @@ export const baseCaracteristics = [
  * @return {CaracteristicType | undefined} The caracteristic with the given name, or undefined if not found.
  */
 function getCaracteristicsByName(name: string) {
+  if (name === "Catégories d'âge") {
+    return {
+      name: "Catégories d'âge",
+      type: "qualitative",
+      options: [
+        "< 18 ans",
+        "18-29 ans",
+        "30-39 ans",
+        "40-49 ans",
+        "50-59 ans",
+        "60-69 ans",
+        "70-79 ans",
+        "80 ans et plus",
+      ],
+    };
+  }
   return baseCaracteristics.find((caracteristic) => {
     return caracteristic.name === name;
   });
@@ -59,7 +76,24 @@ export function analysis(
 
   const groupsData: any[] = [];
 
-  if (selectedPrimaryCharacteristic?.options) {
+  if (selectedPrimaryCharacteristic?.name === "Catégories d'âge") {
+    // Groupement des donnéees selon l'âge de la personne
+    const ageGroups = [18, 30, 40, 50, 60, 70, 80, 100];
+    ageGroups.forEach((ageGroup, index) => {
+      // trier par Age < 18 ans, 18-29 ans, 30-39 ans, 40-49 ans, 50-59 ans, 60-69 ans, 70-79 ans, 80 ans et plus
+      const groupData = sheetData.filter((row) => {
+        const age = Number(row["Age"]);
+        if (ageGroup == 18) {
+          return age < 18;
+        }
+        if (ageGroup == 100) {
+          return age >= 80;
+        }
+        return age >= ageGroups[index - 1] && age < ageGroup;
+      });
+      groupsData.push(groupData);
+    });
+  } else if (selectedPrimaryCharacteristic?.options) {
     selectedPrimaryCharacteristic.options.forEach((option) => {
       // Groupement des données par option de la caractéristique primaire
       const groupData = sheetData.filter(
@@ -87,49 +121,65 @@ export function analysis(
         );
       });
       subanalyse.data = x;
+      subanalyse.IQR = x.map((group) => calculateNumericStats(group));
+      subanalyse.labels = {
+        x: [secondaryCharacteristic?.name],
+        y: selectedPrimaryCharacteristic?.options as string[],
+      };
       if (x.length == 1) {
         // One-sample and paired Student's t-Test.
+        subanalyse.result = ttest(x[0]);
       } else if (x.length == 2) {
         // Two-sample Student's t-Test.
         subanalyse.result = ttest2(x[0], x[1]);
-        subanalyse.IQR = x.map((group) => calculateNumericStats(group));
-        subanalyse.labels = {
-          x: [secondaryCharacteristic?.name],
-          y: selectedPrimaryCharacteristic?.options as string[],
-        };
       } else if (x.length > 2) {
         // One Way ANOVA
+        // Séparation en 2 tableaux comme requis par anova1
+        const table1: number[] = [];
+        const table2: string[] = [];
+        groupsData.forEach((data, index) => {
+          data.forEach((row: any) => {
+            table1.push(Number(row[secondaryCharacteristic.name]));
+            table2.push(
+              selectedPrimaryCharacteristic?.options
+                ? (selectedPrimaryCharacteristic.options[index] as string)
+                : ""
+            );
+          });
+        });
+        subanalyse.result = anova1(table1, table2);
       }
     } else if (secondaryCharacteristic?.type == "qualitative") {
       // qualitatif
-      const contingencyTable = createContingencyTable(
-        selectedPrimaryCharacteristic?.name as string,
-        secondaryCharacteristic?.name as string,
-        sheetData
-      );
-      subanalyse.result = chi2test(contingencyTable);
-      subanalyse.contingencyTable = contingencyTable;
-      if (secondaryCharacteristic?.options) {
-        // copie array:
-        const x = [...secondaryCharacteristic?.options].map((option) =>
-          option.toString()
+      let matrix: {
+        matrix: number[][];
+        rowLabels: string[];
+        colLabels: string[];
+      };
+      if (selectedPrimaryCharacteristic?.name === "Catégories d'âge") {
+        // table de contingence selon l'âge
+        matrix = createContingencyMatrixFromArrays(
+          groupsData,
+          secondaryCharacteristic?.name as string
         );
-        const y = [...(selectedPrimaryCharacteristic?.options as string[])];
-        subanalyse.labels = {
-          x: x.reverse(),
-          y: y.reverse(),
-        };
+        // contingencyTable =
       } else {
-        // x représente la liste des valeurs possibles de secondaryCharacteristic
-        const x = getUniqueValuesByKey(
-          sheetData,
-          secondaryCharacteristic?.name
+        matrix = createContingencyTable(
+          selectedPrimaryCharacteristic?.name as string,
+          secondaryCharacteristic?.name as string,
+          sheetData
         );
-        const y = [...(selectedPrimaryCharacteristic?.options as string[])];
-        subanalyse.labels = {
-          x: x,
-          y: y.reverse(),
-        };
+      }
+      subanalyse.result = chi2test(matrix.matrix);
+      subanalyse.contingencyTable = matrix.matrix;
+      subanalyse.labels = {
+        x: matrix.colLabels,
+        y: matrix.rowLabels,
+      };
+      if (selectedPrimaryCharacteristic?.name === "Catégories d'âge") {
+        subanalyse.labels.y = [
+          ...(selectedPrimaryCharacteristic?.options as string[]),
+        ];
       }
     } else {
       // date
@@ -146,46 +196,95 @@ export function analysis(
 }
 
 /**
- * Create a contingency table for two qualitative variables.
- * @param {string} caracteristicPrimaire - The name of the primary characteristic.
- * @param {string} caracteristicSecondaire - The name of the secondary characteristic.
- * @param {Array} data - The data containing the characteristics.
- * @returns {Array} - The contingency table.
+ * Crée un tableau de contingence entre deux caractéristiques
+ * @param caracteristicPrimaire - Variable pour les lignes (ex: "Année")
+ * @param caracteristicSecondaire - Variable pour les colonnes (ex: "ALD")
+ * @param data - Tableau d'objets contenant les données
+ * @returns { matrix: number[][], rowLabels: string[], colLabels: string[] }
  */
-export function createContingencyTable(
+function createContingencyTable(
   caracteristicPrimaire: string,
   caracteristicSecondaire: string,
   data: any[]
-): number[][] {
-  const contingencyTable: number[][] = [];
+): {
+  matrix: number[][];
+  rowLabels: string[];
+  colLabels: string[];
+} {
+  // 1. Obtenir les valeurs uniques et les trier
+  const rowLabels = [
+    ...new Set(
+      data.map((row) => String(row[caracteristicPrimaire] ?? "Non spécifié"))
+    ),
+  ].sort();
 
-  // Get the unique values of the primary characteristic.
-  const uniqueValuesPrimaire = [
-    ...new Set(data.map((row) => row[caracteristicPrimaire])),
-  ];
+  const colLabels = [
+    ...new Set(
+      data.map((row) => String(row[caracteristicSecondaire] ?? "Non spécifié"))
+    ),
+  ].sort();
 
-  // Get the unique values of the secondary characteristic.
-  const uniqueValuesSecondaire = [
-    ...new Set(data.map((row) => row[caracteristicSecondaire])),
-  ];
+  // 2. Initialiser la matrice avec des 0
+  const matrix: number[][] = Array(rowLabels.length)
+    .fill(0)
+    .map(() => Array(colLabels.length).fill(0));
 
-  // Initialize the contingency table.
-  for (let i = 0; i < uniqueValuesPrimaire.length; i++) {
-    contingencyTable[i] = Array(uniqueValuesSecondaire.length).fill(0);
-  }
-
-  // Populate the contingency table.
+  // 3. Remplir la matrice
   data.forEach((row) => {
-    const indexPrimaire = uniqueValuesPrimaire.indexOf(
-      row[caracteristicPrimaire]
-    );
-    const indexSecondaire = uniqueValuesSecondaire.indexOf(
-      row[caracteristicSecondaire]
-    );
-    contingencyTable[indexPrimaire][indexSecondaire]++;
+    const rowValue = String(row[caracteristicPrimaire] ?? "Non spécifié");
+    const colValue = String(row[caracteristicSecondaire] ?? "Non spécifié");
+
+    const rowIndex = rowLabels.indexOf(rowValue);
+    const colIndex = colLabels.indexOf(colValue);
+
+    if (rowIndex >= 0 && colIndex >= 0) {
+      matrix[rowIndex][colIndex]++;
+    }
   });
 
-  return contingencyTable;
+  return { matrix, rowLabels, colLabels };
+}
+
+/**
+ * Génère une matrice de contingence pour le test du Chi²
+ * @param data Arrays d'objets à comparer (ex: [feuille1, feuille2, feuille3])
+ * @param key Clé qualitative à analyser (ex: "ALD", "Complementaire")
+ * @returns { matrix: number[][], rowLabels: string[], colLabels: string[] }
+ */
+function createContingencyMatrixFromArrays<T extends Record<string, any>>(
+  data: T[][],
+  key: keyof T
+): {
+  matrix: number[][];
+  rowLabels: string[];
+  colLabels: string[];
+} {
+  // 1. Collecter toutes les valeurs uniques de la clé
+  const allValues = new Set<string>();
+  data.forEach((group) => {
+    group.forEach((item) => {
+      const value = String(item[key] ?? "Non spécifié");
+      allValues.add(value);
+    });
+  });
+
+  // 2. Initialiser la matrice [groupes × valeurs]
+  const colLabels = Array.from(allValues).sort();
+  const rowLabels = data.map((_, i) => `Groupe ${i + 1}`);
+  const matrix: number[][] = Array(data.length)
+    .fill(0)
+    .map(() => Array(colLabels.length).fill(0));
+
+  // 3. Remplir la matrice
+  data.forEach((group, groupIdx) => {
+    group.forEach((item) => {
+      const value = String(item[key] ?? "Non spécifié");
+      const valueIdx = colLabels.indexOf(value);
+      matrix[groupIdx][valueIdx]++;
+    });
+  });
+
+  return { matrix, rowLabels, colLabels };
 }
 
 /**
@@ -193,7 +292,7 @@ export function createContingencyTable(
  * @param {Array<number>} data - The input data.
  * @returns {Object} - An object with properties `median`, `q1`, `q3`, `mean`, and `std`, representing the median, first quartile, third quartile, mean, and standard deviation of the data respectively.
  */
-export function calculateNumericStats(data: number[]): {
+function calculateNumericStats(data: number[]): {
   median: number;
   q1: number;
   q3: number;
@@ -207,22 +306,6 @@ export function calculateNumericStats(data: number[]): {
   const std = data.length > 1 ? ss.standardDeviation(data) : 0;
 
   return { median, q1, q3, mean, std };
-}
-
-/**
- * Get the unique values of a specific key from an array of objects.
- * @param {Array<Object>} arr - The input array of objects.
- * @param {string} keyName - The name of the key to get the unique values from.
- * @returns {Array} - An array of unique values.
- */
-export function getUniqueValuesByKey(arr: any[], keyName: string): any[] {
-  const uniqueValues: any[] = [];
-  arr.forEach((obj) => {
-    if (!uniqueValues.includes(obj[keyName])) {
-      uniqueValues.push(obj[keyName]);
-    }
-  });
-  return uniqueValues;
 }
 
 export function globalAnalysis(
@@ -269,7 +352,10 @@ export function globalAnalysis(
         x: [characteristic?.name],
         y: [...sheetsNames],
       };
-      if (sheetData.length === 2) {
+      if (x.length == 1) {
+        // One-sample and paired Student's t-Test.
+        subanalyse.result = ttest(x[0]);
+      } else if (sheetData.length === 2) {
         // Ttest
         subanalyse.result = ttest2(x[0], x[1]);
       } else if (sheetData.length > 2) {
@@ -289,32 +375,17 @@ export function globalAnalysis(
     } else if (characteristic.type === "qualitative") {
       // analyse qualitative
       // créer une table de contingence en ce basant sur la nom de characteristic et à partir des différents Array de sheetData
-      const contingencyTable = createGlobalContingencyTable(
+      const matrix = createGlobalContingencyTable(
         sheetData,
         sheetsNames,
         characteristic.name
       );
-      subanalyse.result = chi2test(contingencyTable);
-      subanalyse.contingencyTable = contingencyTable;
-
-      if (characteristic?.options) {
-        const x = [...characteristic?.options].map((option) =>
-          option.toString()
-        );
-        const y = [...sheetsNames];
-        subanalyse.labels = {
-          x: x.reverse(),
-          y,
-        };
-      } else {
-        // x représente la liste des valeurs possibles de secondaryCharacteristic
-        const x = getUniqueValuesByKey(Object.values(sheetData).flat(), characteristic?.name);
-        const y = [...sheetsNames];
-        subanalyse.labels = {
-          x,
-          y,
-        };
-      }
+      subanalyse.result = chi2test(matrix.matrix);
+      subanalyse.contingencyTable = matrix.matrix;
+      subanalyse.labels = {
+        x: matrix.colLabels,
+        y: matrix.rowLabels,
+      };
     } else {
       // date
     }
@@ -330,42 +401,52 @@ export function globalAnalysis(
 }
 
 /**
- * Génère une matrice de contingence pour le test du Chi²
- * @param data Tableau de feuilles Excel (3D array)
- * @param sheetNames Noms des feuilles
+ * Génère une matrice de contingence globale pour le test du Chi²
+ * @param data Tableau 3D des feuilles Excel [feuille][ligne][colonne]
+ * @param sheetNames Noms des feuilles (pour rowLabels)
  * @param variable Variable qualitative à analyser
- * @returns Matrice 2D prête pour le test du Chi²
+ * @returns { matrix: number[][], rowLabels: string[], colLabels: string[] }
  */
 function createGlobalContingencyTable(
-  data: any[][],
+  data: any[][][],
   sheetNames: string[],
   variable: string
-): number[][] {
-  // 1. Collecter toutes les catégories uniques
+): {
+  matrix: number[][];
+  rowLabels: string[];
+  colLabels: string[];
+} {
+  // 1. Collecter toutes les catégories uniques (triées)
   const allCategories = new Set<string>();
   data.forEach((sheet) => {
     sheet.forEach((row) => {
-      allCategories.add(String(row[variable] ?? "Non renseigné"));
+      allCategories.add(String(row[variable as any] ?? "Non renseigné"));
     });
   });
+  const colLabels = Array.from(allCategories).sort();
 
   // 2. Initialiser la matrice [feuilles × catégories]
   const matrix: number[][] = Array(sheetNames.length)
     .fill(0)
-    .map(() => Array(allCategories.size).fill(0));
+    .map(() => Array(colLabels.length).fill(0));
 
-  // 3. Remplir la matrice
-  const categoryIndex = Array.from(allCategories).reduce((acc, cat, idx) => {
-    acc[cat] = idx;
-    return acc;
-  }, {} as Record<string, number>);
+  // 3. Créer un index rapide des catégories
+  const categoryIndex: Record<string, number> = {};
+  colLabels.forEach((cat, idx) => {
+    categoryIndex[cat] = idx;
+  });
 
+  // 4. Remplir la matrice
   data.forEach((sheet, sheetIdx) => {
     sheet.forEach((row) => {
-      const cat = String(row[variable] ?? "Non renseigné");
+      const cat = String(row[variable as any] ?? "Non renseigné");
       matrix[sheetIdx][categoryIndex[cat]]++;
     });
   });
 
-  return matrix;
+  return {
+    matrix,
+    rowLabels: [...sheetNames], // Copie des noms de feuilles
+    colLabels,
+  };
 }
