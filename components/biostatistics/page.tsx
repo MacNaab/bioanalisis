@@ -11,6 +11,7 @@ import {
   Play,
   Settings,
 } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 
 import { Analysis } from "@/types/analysis";
 import { parseExcelData, getAnalysis } from "@/lib/idb";
@@ -41,7 +42,8 @@ import {
   globalAnalysis,
 } from "@/lib/biostatistics";
 import SubAnalyseCard from "@/components/biostatistics/subanalyseCard";
-import { ScrollToTopButton } from "../ScrollToTopButton";
+import BrutCard from "@/components/biostatistics/brutCard";
+import { ScrollToTopButton } from "@/components/ScrollToTopButton";
 import { toast } from "sonner";
 
 export default function BiostatisticsPage({
@@ -168,7 +170,7 @@ export default function BiostatisticsPage({
               <div className="flex flex-wrap gap-2">
                 {analysisConfig.sheets.map((sheetName) => (
                   <Badge
-                    key={sheetName}
+                    key={uuidv4()}
                     variant="secondary"
                     className="px-3 py-1"
                   >
@@ -219,14 +221,13 @@ export default function BiostatisticsPage({
                 {baseCaracteristics
                   .filter((caracteristic) => caracteristic.options)
                   .map((caracteristic) => (
-                    <SelectItem
-                      key={caracteristic.name}
-                      value={caracteristic.name}
-                    >
+                    <SelectItem key={uuidv4()} value={caracteristic.name}>
                       {caracteristic.name}
                     </SelectItem>
                   ))}
-                <SelectItem value="Catégories d'âge">Catégories d'âge</SelectItem>
+                <SelectItem value="Catégories d'âge">
+                  Catégories d'âge
+                </SelectItem>
               </SelectContent>
             </Select>
             {primaryCharacteristic && (
@@ -246,7 +247,7 @@ export default function BiostatisticsPage({
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {baseCaracteristics.map((caracteristic) => (
                 <div
-                  key={caracteristic.name}
+                  key={uuidv4()}
                   className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
                 >
                   <Checkbox
@@ -282,7 +283,7 @@ export default function BiostatisticsPage({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {secondaryCharacteristics.map((char) => (
-                    <Badge key={char} variant="secondary">
+                    <Badge key={uuidv4()} variant="secondary">
                       {char}
                     </Badge>
                   ))}
@@ -328,6 +329,25 @@ export default function BiostatisticsPage({
         </CardContent>
       </Card>
 
+      {/* Résultats bruts */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            Résultats bruts
+          </CardTitle>
+          <CardDescription>
+            Visualisation et statistiques bruts des données
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BrutCard
+            brutResults={sheetDataCollection}
+            sheetsNames={analysisConfig.sheets}
+          />
+        </CardContent>
+      </Card>
+
       {/* Résultats de l'analyse */}
       {analysisResults && (
         <Card>
@@ -345,9 +365,8 @@ export default function BiostatisticsPage({
               <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
                 {analysisConfig.sheets.map((sheetName) => (
                   <TabsTrigger
-                    key={sheetName}
+                    key={uuidv4()}
                     value={sheetName}
-                    // onClick={() => setActiveSheetName(sheetName)}
                     className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground cursor-pointer"
                   >
                     {sheetName}
@@ -355,7 +374,6 @@ export default function BiostatisticsPage({
                 ))}
                 <TabsTrigger
                   value="Global"
-                  // onClick={() => setActiveSheetName(sheetName)}
                   className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground cursor-pointer"
                 >
                   Global
@@ -363,7 +381,7 @@ export default function BiostatisticsPage({
               </TabsList>
               {analysisConfig.sheets.map((sheetName) => (
                 <TabsContent
-                  key={sheetName}
+                  key={uuidv4()}
                   value={sheetName}
                   className="space-y-6"
                 >

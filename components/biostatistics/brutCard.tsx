@@ -2,7 +2,8 @@
 // components/biostatistics/subanalyseCard.tsx
 import { v4 as uuidv4 } from "uuid";
 import Plot from "react-plotly.js";
-import { AnalysisSubType, AnalysisType } from "@/types/analysis";
+
+import { CaracteristicType } from "@/types/analysis";
 import {
   Card,
   CardContent,
@@ -20,23 +21,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  ChevronDown,
-  ChevronRight,
-  BarChart3,
-  TableIcon,
-  Code,
-  TrendingUp,
-  Database,
-} from "lucide-react";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
+import { BarChart3, TableIcon, Database } from "lucide-react";
+
 import { useEffect, useState } from "react";
-import { StatisticalResult } from "./statisticalResult";
+import {
+  baseCaracteristics,
+  calculateNumericStats,
+  createGlobalContingencyTable,
+} from "@/lib/biostatistics";
 
 const labelText = (label: string, mainCaracteristicName: string) => {
   return typeof label === "string"
@@ -45,23 +37,14 @@ const labelText = (label: string, mainCaracteristicName: string) => {
 };
 
 function Qualitative({
-  caracteristicName,
-  mainCaracteristicName,
-  contingencyTable,
-  result,
-  labels,
+  caracteristic,
+  results,
   sheetsNames,
-  isGlobal = false,
 }: {
-  caracteristicName: string;
-  mainCaracteristicName: string;
-  contingencyTable: number[][];
-  result: any;
-  labels: AnalysisSubType["labels"];
-  sheetsNames?: string[];
-  isGlobal?: boolean;
+  caracteristic: CaracteristicType;
+  results: any;
+  sheetsNames: string[];
 }) {
-  const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [screenSize, setScreenSize] = useState(window.innerWidth);
 
   useEffect(() => {
@@ -73,6 +56,23 @@ function Qualitative({
       window.removeEventListener("resize", handleResize);
     };
   }, []);
+
+  const result : any[] = [];
+  for (const sheetName of sheetsNames) {
+    result.push(results[sheetName]);
+  }
+  result.push(result.flat());
+
+  const matrix = createGlobalContingencyTable(
+    result,
+    [...sheetsNames, "Total"],
+    caracteristic.name
+  );
+  const labels = {
+    x: matrix.colLabels,
+    y: matrix.rowLabels,
+  };
+  const contingencyTable = matrix.matrix;
 
   const data: {
     x: string[];
@@ -94,13 +94,13 @@ function Qualitative({
 
   contingencyTable.forEach((row, index) => {
     const x =
-      labels?.x.map((label) => labelText(label, caracteristicName)) ?? [];
+      labels?.x.map((label) => labelText(label, caracteristic.name)) ?? [];
     const d = {
       x,
       y: row,
       text: row.map((value) => value.toString()),
       type: "bar" as const,
-      name: labelText(labels?.y[index] ?? "", mainCaracteristicName),
+      name: labelText(labels?.y[index] ?? "", caracteristic.name),
       marker: { color: colors[index % colors.length] },
     };
     data.push(d);
@@ -113,9 +113,7 @@ function Qualitative({
           data={data}
           layout={{
             title: {
-              text: `Distribution de ${caracteristicName} en fonction ${
-                isGlobal ? sheetsNames : mainCaracteristicName
-              }`,
+              text: `Distribution de ${caracteristic.name} en fonction ${sheetsNames}`,
               font: { size: 16 },
             },
             plot_bgcolor: "rgba(0,0,0,0)",
@@ -141,11 +139,11 @@ function Qualitative({
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead className="font-semibold">
-                {isGlobal ? "" : mainCaracteristicName} | {caracteristicName}
+                | {caracteristic.name}
               </TableHead>
               {labels?.x.map((label) => (
                 <TableHead key={uuidv4()} className="text-center font-semibold">
-                  {labelText(label, caracteristicName)}
+                  {labelText(label, caracteristic.name)}
                 </TableHead>
               ))}
             </TableRow>
@@ -154,7 +152,7 @@ function Qualitative({
             {contingencyTable.map((row, rowIndex) => (
               <TableRow key={uuidv4()} className="hover:bg-muted/30">
                 <TableCell className="font-medium bg-muted/20">
-                  {labelText(labels?.y[rowIndex] ?? "", mainCaracteristicName)}
+                  {labelText(labels?.y[rowIndex] ?? "", caracteristic.name)}
                 </TableCell>
                 {row.map((cell) => (
                   <TableCell key={uuidv4()} className="text-center">
@@ -165,13 +163,6 @@ function Qualitative({
             ))}
           </TableBody>
         </Table>
-        <div>
-          <StatisticalResult
-            result={result}
-            variableName={caracteristicName}
-            mainName={isGlobal ? "" : mainCaracteristicName}
-          />
-        </div>
       </div>
     );
   };
@@ -183,11 +174,10 @@ function Qualitative({
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 cursor-pointer">
               <BarChart3 className="h-5 w-5 text-primary" />
-              {caracteristicName}
+              {caracteristic.name}
             </CardTitle>
             <CardDescription>
-              Analyse qualitative par rapport à{" "}
-              {isGlobal ? sheetsNames?.join(", ") : mainCaracteristicName}
+              Analyse qualitative par rapport à {sheetsNames?.join(", ")}
             </CardDescription>
           </div>
           <Badge
@@ -205,7 +195,7 @@ function Qualitative({
           className="space-y-6"
         >
           {screenSize > 1024 ? (
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger
                 value="data"
                 className="flex items-center gap-2 cursor-pointer "
@@ -213,16 +203,9 @@ function Qualitative({
                 <Database className="h-4 w-4" />
                 Données
               </TabsTrigger>
-              <TabsTrigger
-                value="stats"
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <TrendingUp className="h-4 w-4" />
-                Statistiques
-              </TabsTrigger>
             </TabsList>
           ) : (
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger
                 value="chart"
                 className="flex items-center gap-2 cursor-pointer"
@@ -236,13 +219,6 @@ function Qualitative({
               >
                 <TableIcon className="h-4 w-4" />
                 Tableau
-              </TabsTrigger>
-              <TabsTrigger
-                value="stats"
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <TrendingUp className="h-4 w-4" />
-                Statistiques
               </TabsTrigger>
             </TabsList>
           )}
@@ -262,32 +238,6 @@ function Qualitative({
           <TabsContent value="table" className="space-y-4">
             <TableData />
           </TabsContent>
-
-          <TabsContent value="stats" className="space-y-4">
-            <Collapsible open={isResultsOpen} onOpenChange={setIsResultsOpen}>
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 cursor-pointer w-full justify-start"
-                >
-                  {isResultsOpen ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                  <Code className="h-4 w-4" />
-                  Résultats statistiques détaillés
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-3">
-                <div className="rounded-lg border bg-muted/20 p-4">
-                  <pre className="text-sm overflow-auto max-h-96 font-mono">
-                    {JSON.stringify(result, null, 2)}
-                  </pre>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
@@ -295,25 +245,14 @@ function Qualitative({
 }
 
 function Quantitative({
-  caracteristicName,
-  mainCaracteristicName,
-  result,
-  data,
-  labels,
-  IQR,
+  caracteristic,
+  results,
   sheetsNames,
-  isGlobal = false,
 }: {
-  caracteristicName: string;
-  mainCaracteristicName: string;
-  result: any;
-  data: any[];
-  labels: AnalysisSubType["labels"];
-  IQR: AnalysisSubType["IQR"];
-  sheetsNames?: string[];
-  isGlobal?: boolean;
+  caracteristic: CaracteristicType;
+  results: any;
+  sheetsNames: string[];
 }) {
-  const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [screenSize, setScreenSize] = useState(window.innerWidth);
 
   useEffect(() => {
@@ -325,6 +264,18 @@ function Quantitative({
       window.removeEventListener("resize", handleResize);
     };
   }, []);
+
+  const data: number[][] = [];
+
+  for (const sheetName of sheetsNames) {
+    const sheetResults = results[sheetName];
+    const filteredResults = sheetResults.map((r: any) =>
+      Number(r[caracteristic.name])
+    );
+    data.push(filteredResults);
+  }
+  const totalData = data.flat();
+  data.push(totalData);
 
   const colors = [
     "#3b82f6",
@@ -338,9 +289,8 @@ function Quantitative({
   const plotData = data.map((d, i) => ({
     y: d,
     type: "box" as const,
-    name: labelText(labels?.y[i] ?? "", mainCaracteristicName),
+    name: sheetsNames[i] ? `Année ${sheetsNames[i]}` : "Total",
     marker: { color: colors[i % colors.length] },
-    // boxpoints: 'outliers',
     jitter: 0.3,
   }));
 
@@ -351,9 +301,7 @@ function Quantitative({
           data={plotData}
           layout={{
             title: {
-              text: `Distribution de ${caracteristicName} en fonction ${
-                isGlobal ? sheetsNames : mainCaracteristicName
-              }`,
+              text: `Distribution de ${caracteristic.name} en fonction ${sheetsNames}`,
               font: { size: 16 },
             },
             // xaxis: { title: mainCaracteristicName },
@@ -374,6 +322,16 @@ function Quantitative({
     );
   };
 
+  const IQRs: {
+    median: number;
+    q1: number;
+    q3: number;
+    mean: number;
+    std: number;
+  }[] = [];
+  data.forEach((d) => IQRs.push(calculateNumericStats(d)));
+  //  IQRs.push(calculateNumericStats(data.flat()));
+
   const TableData = () => {
     return (
       <div className="rounded-lg border p-2 flex flex-col gap-2">
@@ -381,11 +339,12 @@ function Quantitative({
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead className="font-semibold">Statistique</TableHead>
-              {labels?.y.map((label) => (
+              {sheetsNames.map((label) => (
                 <TableHead key={uuidv4()} className="text-center font-semibold">
-                  {labelText(label, mainCaracteristicName)}
+                  {label}
                 </TableHead>
               ))}
+              <TableHead className="text-center font-semibold">Total</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -393,7 +352,7 @@ function Quantitative({
               <TableCell className="font-medium bg-muted/20">
                 Moyenne (Écart-type)
               </TableCell>
-              {IQR?.map((stats) => (
+              {IQRs?.map((stats) => (
                 <TableCell key={uuidv4()} className="text-center">
                   <div className="space-y-1">
                     <div className="font-semibold">{stats.mean.toFixed(2)}</div>
@@ -408,7 +367,7 @@ function Quantitative({
               <TableCell className="font-medium bg-muted/20">
                 Médiane [Q1 ; Q3]
               </TableCell>
-              {IQR?.map((stats) => (
+              {IQRs?.map((stats) => (
                 <TableCell key={uuidv4()} className="text-center">
                   <div className="space-y-1">
                     <div className="font-semibold">{stats.median}</div>
@@ -421,13 +380,6 @@ function Quantitative({
             </TableRow>
           </TableBody>
         </Table>
-        <div>
-          <StatisticalResult
-            result={result}
-            variableName={caracteristicName}
-            mainName={isGlobal ? "" : mainCaracteristicName}
-          />
-        </div>
       </div>
     );
   };
@@ -439,11 +391,10 @@ function Quantitative({
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 cursor-pointer">
               <BarChart3 className="h-5 w-5 text-primary" />
-              {caracteristicName}
+              {caracteristic.name}
             </CardTitle>
             <CardDescription>
-              Analyse quantitative par rapport à{" "}
-              {isGlobal ? sheetsNames?.join(", ") : mainCaracteristicName}
+              Analyse quantitative par rapport à {sheetsNames?.join(", ")}
             </CardDescription>
           </div>
           <Badge
@@ -461,7 +412,7 @@ function Quantitative({
           className="space-y-6"
         >
           {screenSize > 1024 ? (
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger
                 value="data"
                 className="flex items-center gap-2 cursor-pointer"
@@ -469,16 +420,9 @@ function Quantitative({
                 <BarChart3 className="h-4 w-4" />
                 Données
               </TabsTrigger>
-              <TabsTrigger
-                value="stats"
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <TrendingUp className="h-4 w-4" />
-                Tests
-              </TabsTrigger>
             </TabsList>
           ) : (
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger
                 value="chart"
                 className="flex items-center gap-2 cursor-pointer"
@@ -492,13 +436,6 @@ function Quantitative({
               >
                 <TableIcon className="h-4 w-4" />
                 Statistiques
-              </TabsTrigger>
-              <TabsTrigger
-                value="stats"
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <TrendingUp className="h-4 w-4" />
-                Tests
               </TabsTrigger>
             </TabsList>
           )}
@@ -518,101 +455,44 @@ function Quantitative({
           <TabsContent value="table" className="space-y-4">
             <TableData />
           </TabsContent>
-
-          <TabsContent value="stats" className="space-y-4">
-            <Collapsible open={isResultsOpen} onOpenChange={setIsResultsOpen}>
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="flex items-center gap-2 cursor-pointer w-full justify-start"
-                >
-                  {isResultsOpen ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                  <Code className="h-4 w-4" />
-                  Résultats des tests statistiques
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-3">
-                <div className="rounded-lg border bg-muted/20 p-4">
-                  <pre className="text-sm overflow-auto max-h-96 font-mono">
-                    {JSON.stringify(result, null, 2)}
-                  </pre>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-          </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
   );
 }
 
-export default function SubCard({
-  analysisResults,
+export default function BrutCard({
+  brutResults,
   sheetsNames,
 }: {
-  analysisResults: AnalysisType;
-  sheetsNames?: string[];
+  brutResults: any;
+  sheetsNames: string[];
 }) {
-  const subanalyses = analysisResults.subanalyses;
-
   return (
     <div className="space-y-8">
-      {/* En-tête de l'analyse */}
-      <div className="space-y-2">
-        <h2 className="text-2xl font-bold tracking-tight">
-          Analyse de{" "}
-          <strong>
-            {analysisResults.name === "Global"
-              ? sheetsNames?.join(", ")
-              : analysisResults.main}
-          </strong>
-        </h2>
-        <p className="text-muted-foreground">
-          {subanalyses.length} analyse{subanalyses.length > 1 ? "s" : ""}{" "}
-          effectuée{subanalyses.length > 1 ? "s" : ""}
-        </p>
-      </div>
-
       {/* Résultats des sous-analyses */}
       <div className="space-y-6">
-        {subanalyses.map((sub: AnalysisSubType) => {
-          if (sub.caracteristic.type === "qualitative") {
-            if (sub.contingencyTable) {
-              return (
-                <Qualitative
-                  key={uuidv4()}
-                  mainCaracteristicName={analysisResults.main}
-                  caracteristicName={sub.caracteristic.name}
-                  result={sub.result}
-                  contingencyTable={sub.contingencyTable}
-                  labels={sub.labels}
-                  sheetsNames={sheetsNames}
-                  isGlobal={analysisResults.name === "Global"}
-                />
-              );
-            }
-          }
-
-          if (sub.caracteristic.type === "quantitative") {
+        {baseCaracteristics.map((caracteristic: CaracteristicType) => {
+          if (caracteristic.type === "qualitative") {
             return (
-              <Quantitative
+              <Qualitative
                 key={uuidv4()}
-                caracteristicName={sub.caracteristic.name}
-                mainCaracteristicName={analysisResults.main}
-                result={sub.result}
-                data={sub.data}
-                IQR={sub.IQR}
-                labels={sub.labels}
+                caracteristic={caracteristic}
+                results={brutResults}
                 sheetsNames={sheetsNames}
-                isGlobal={analysisResults.name === "Global"}
               />
             );
           }
-
+          if (caracteristic.type === "quantitative") {
+            return (
+              <Quantitative
+                key={uuidv4()}
+                caracteristic={caracteristic}
+                results={brutResults}
+                sheetsNames={sheetsNames}
+              />
+            );
+          }
           return null;
         })}
       </div>

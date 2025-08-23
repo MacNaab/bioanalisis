@@ -10,7 +10,7 @@ import ttest2 from "@stdlib/stats/ttest2";
 import anova1 from "@stdlib/stats/anova1";
 import * as ss from "simple-statistics";
 
-export const baseCaracteristics = [
+export const baseCaracteristics : CaracteristicType[] = [
   { name: "Date", type: "date" },
   { name: "Age", type: "quantitative" },
   { name: "Sexe", type: "qualitative", options: ["Homme", "Femme"] },
@@ -292,7 +292,7 @@ function createContingencyMatrixFromArrays<T extends Record<string, any>>(
  * @param {Array<number>} data - The input data.
  * @returns {Object} - An object with properties `median`, `q1`, `q3`, `mean`, and `std`, representing the median, first quartile, third quartile, mean, and standard deviation of the data respectively.
  */
-function calculateNumericStats(data: number[]): {
+export function calculateNumericStats(data: number[]): {
   median: number;
   q1: number;
   q3: number;
@@ -407,7 +407,7 @@ export function globalAnalysis(
  * @param variable Variable qualitative à analyser
  * @returns { matrix: number[][], rowLabels: string[], colLabels: string[] }
  */
-function createGlobalContingencyTable(
+export function createGlobalContingencyTable(
   data: any[][][],
   sheetNames: string[],
   variable: string

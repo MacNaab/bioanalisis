@@ -490,7 +490,7 @@ export default function HomePage() {
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-6 w-6 text-primary" />
-                <span className="font-semibold text-lg">BioAnalytics</span>
+                <span className="font-semibold text-lg">Evil Corp</span>
               </div>
               <p className="text-sm text-muted-foreground">
                 Plateforme d'analyse biostatistique moderne pour les
