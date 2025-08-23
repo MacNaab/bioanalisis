@@ -52,6 +52,7 @@ function Qualitative({
   labels,
   sheetsNames,
   isGlobal = false,
+  sheetName,
 }: {
   caracteristicName: string;
   mainCaracteristicName: string;
@@ -60,6 +61,7 @@ function Qualitative({
   labels: AnalysisSubType["labels"];
   sheetsNames?: string[];
   isGlobal?: boolean;
+  sheetName?: string;
 }) {
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [screenSize, setScreenSize] = useState(window.innerWidth);
@@ -114,10 +116,14 @@ function Qualitative({
           layout={{
             title: {
               text: `Distribution de ${caracteristicName} en fonction ${
-                isGlobal ? sheetsNames : mainCaracteristicName
+                isGlobal
+                  ? sheetsNames
+                  : `${mainCaracteristicName} (${sheetName})`
               }`,
               font: { size: 16 },
             },
+            xaxis: { title: { text: caracteristicName, font: { size: 12 } }  },
+            yaxis: { title: { text: mainCaracteristicName, font: { size: 12 } } },
             plot_bgcolor: "rgba(0,0,0,0)",
             paper_bgcolor: "rgba(0,0,0,0)",
             font: { family: "Inter, system-ui, sans-serif" },
@@ -187,7 +193,7 @@ function Qualitative({
             </CardTitle>
             <CardDescription>
               Analyse qualitative par rapport à{" "}
-              {isGlobal ? sheetsNames?.join(", ") : mainCaracteristicName}
+              {isGlobal ? sheetsNames?.join(", ") : `${mainCaracteristicName} (${sheetName})`}
             </CardDescription>
           </div>
           <Badge
@@ -303,6 +309,7 @@ function Quantitative({
   IQR,
   sheetsNames,
   isGlobal = false,
+  sheetName,
 }: {
   caracteristicName: string;
   mainCaracteristicName: string;
@@ -312,6 +319,7 @@ function Quantitative({
   IQR: AnalysisSubType["IQR"];
   sheetsNames?: string[];
   isGlobal?: boolean;
+  sheetName?: string;
 }) {
   const [isResultsOpen, setIsResultsOpen] = useState(false);
   const [screenSize, setScreenSize] = useState(window.innerWidth);
@@ -335,9 +343,19 @@ function Quantitative({
     "#ec4899",
   ];
 
+  const histogramItems = ["Consultations1", "Consultations2"];
+
+  const isHistogram = () => {
+    if (histogramItems.includes(caracteristicName) && mainCaracteristicName !== "Catégories d'âge") {
+      return "histogram" as const;
+    }
+    return "box" as const;
+  } ;
+
   const plotData = data.map((d, i) => ({
     y: d,
-    type: "box" as const,
+    // type: histogramItems.includes(caracteristicName) ? "histogram" as const : "box" as const,
+    type: isHistogram(),
     name: labelText(labels?.y[i] ?? "", mainCaracteristicName),
     marker: { color: colors[i % colors.length] },
     // boxpoints: 'outliers',
@@ -352,12 +370,14 @@ function Quantitative({
           layout={{
             title: {
               text: `Distribution de ${caracteristicName} en fonction ${
-                isGlobal ? sheetsNames : mainCaracteristicName
+                isGlobal
+                  ? sheetsNames
+                  : `${mainCaracteristicName} (${sheetName})`
               }`,
               font: { size: 16 },
             },
-            // xaxis: { title: mainCaracteristicName },
-            // yaxis: { title: caracteristicName },
+            xaxis: { title: { text: mainCaracteristicName, font: { size: 12 } }  },
+            yaxis: { title: { text: caracteristicName, font: { size: 12 } } },
             plot_bgcolor: "rgba(0,0,0,0)",
             paper_bgcolor: "rgba(0,0,0,0)",
             font: { family: "Inter, system-ui, sans-serif" },
@@ -443,7 +463,7 @@ function Quantitative({
             </CardTitle>
             <CardDescription>
               Analyse quantitative par rapport à{" "}
-              {isGlobal ? sheetsNames?.join(", ") : mainCaracteristicName}
+              {isGlobal ? sheetsNames?.join(", ") : `${mainCaracteristicName} (${sheetName})`}
             </CardDescription>
           </div>
           <Badge
@@ -553,9 +573,11 @@ function Quantitative({
 export default function SubCard({
   analysisResults,
   sheetsNames,
+  sheetName,
 }: {
   analysisResults: AnalysisType;
   sheetsNames?: string[];
+  sheetName?: string;
 }) {
   const subanalyses = analysisResults.subanalyses;
 
@@ -592,6 +614,7 @@ export default function SubCard({
                   labels={sub.labels}
                   sheetsNames={sheetsNames}
                   isGlobal={analysisResults.name === "Global"}
+                  sheetName={sheetName}
                 />
               );
             }
@@ -609,6 +632,7 @@ export default function SubCard({
                 labels={sub.labels}
                 sheetsNames={sheetsNames}
                 isGlobal={analysisResults.name === "Global"}
+                sheetName={sheetName}
               />
             );
           }

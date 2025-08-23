@@ -25,6 +25,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -183,6 +189,33 @@ export default function BiostatisticsPage({
         </Card>
       </div>
 
+      {/* Résultats bruts */}
+      <Card>
+        <Accordion type="single" collapsible>
+          <AccordionItem value="item-1">
+            <AccordionTrigger className="cursor-pointer px-2">
+              <CardHeader className="w-full">
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Résultats bruts
+                </CardTitle>
+                <CardDescription className="text-left">
+                  Visualisation et statistiques bruts des données
+                </CardDescription>
+              </CardHeader>
+            </AccordionTrigger>
+            <AccordionContent className="mt-2 space-y-4">
+              <CardContent>
+                <BrutCard
+                  brutResults={sheetDataCollection}
+                  sheetsNames={analysisConfig.sheets}
+                />
+              </CardContent>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+      </Card>
+
       {/* Configuration de l'analyse */}
       <Card id="data-info">
         <CardHeader>
@@ -329,25 +362,6 @@ export default function BiostatisticsPage({
         </CardContent>
       </Card>
 
-      {/* Résultats bruts */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Résultats bruts
-          </CardTitle>
-          <CardDescription>
-            Visualisation et statistiques bruts des données
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <BrutCard
-            brutResults={sheetDataCollection}
-            sheetsNames={analysisConfig.sheets}
-          />
-        </CardContent>
-      </Card>
-
       {/* Résultats de l'analyse */}
       {analysisResults && (
         <Card>
@@ -387,6 +401,7 @@ export default function BiostatisticsPage({
                 >
                   <SubAnalyseCard
                     analysisResults={analysisResults[sheetName]}
+                    sheetName={sheetName}
                   />
                 </TabsContent>
               ))}
