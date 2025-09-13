@@ -196,14 +196,16 @@ export default function HomePage() {
                   <ArrowRight className="h-5 w-5 ml-2" />
                 </Button>
               </Link>
-              <Button
-                variant="outline"
-                size="lg"
-                className="text-lg px-8 py-6 border-2 hover:bg-muted/50"
-              >
-                <FileText className="h-5 w-5 mr-2" />
-                Voir un exemple
-              </Button>
+              <Link href="/exemples">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="text-lg px-8 py-6 border-2 hover:bg-muted/50 cursor-pointer"
+                >
+                  <FileText className="h-5 w-5 mr-2" />
+                  Voir un exemple
+                </Button>
+              </Link>
             </div>
 
             {/* Compatibility badges */}
@@ -501,28 +503,28 @@ export default function HomePage() {
               <h4 className="font-medium mb-4">Ressources</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li>
-                  <a
-                    href="#"
+                  <Link
+                    href="/documentation"
                     className="hover:text-foreground transition-colors"
                   >
                     Documentation
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a
-                    href="#"
+                  <Link
+                    href="/playground"
                     className="hover:text-foreground transition-colors"
                   >
                     Tutoriels
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a
-                    href="#"
+                  <Link
+                    href="/exemples"
                     className="hover:text-foreground transition-colors"
                   >
                     Exemples
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
