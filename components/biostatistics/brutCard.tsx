@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/biostatistics/subanalyseCard.tsx
 import { v4 as uuidv4 } from "uuid";
-import Plot from "react-plotly.js";
+// import Plot from "react-plotly.js";
+import dynamic from "next/dynamic";
+const Plot = dynamic(() => import("react-plotly.js"), { ssr: false, })
 
 import { CaracteristicType } from "@/types/analysis";
 import {

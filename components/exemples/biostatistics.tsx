@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
   BarChart3,
@@ -54,6 +54,14 @@ export default function BiostatisticsPage({
 }: {
   analysisConfig: any | null;
 }) {
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    setTimeout(() => {
+      setLoading(false);
+    }, 1000);
+  }, []);
+
+
   // États pour l'analyse biostatistique
   const sheetDataCollection = analysisConfig.data;
   const [primaryCharacteristic, setPrimaryCharacteristic] =
@@ -116,7 +124,7 @@ export default function BiostatisticsPage({
   const canAnalyze =
     primaryCharacteristic && secondaryCharacteristics.length > 0;
 
-  if (!analysisConfig) {
+  if (!analysisConfig || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center space-y-4">
